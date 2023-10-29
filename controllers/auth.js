@@ -23,7 +23,6 @@ const generateVerificationToken = () => {
 // Login controller
 exports.login = async (req, res) => {
     const { email, password } = req.body;
-    console.log("Response: ", req.body);
     try {
       // Check if the user exists in the database
       const userQueryResult = await pool.query('SELECT * FROM boardroom.users WHERE email = $1', [email]);
@@ -37,7 +36,6 @@ exports.login = async (req, res) => {
       const user = userQueryResult.rows[0];
   
       // Compare the entered password with the hashed password in the database
-      console.log('Password: ', user);
       const isPasswordValid = await bcrypt.compare(password, user.password_hash);
   
       if (!isPasswordValid) {
@@ -48,8 +46,6 @@ exports.login = async (req, res) => {
       const token = jwt.sign({ userId: user.user_id }, process.env.JWT_SECRET, {
         expiresIn: '1h', // Adjust the expiration time as needed
       });
-  
-      console.log('Generated Token:', token);
   
   
          // Set the token in a cookie
@@ -76,7 +72,6 @@ exports.login = async (req, res) => {
 
   // Sign-up Controller
   exports.register = async (req, res) => {
-    console.log('Request Body:', req.body); // Log the request body
   const { firstname, lastname, email, password } = req.body;
 
     try {
@@ -89,7 +84,6 @@ exports.login = async (req, res) => {
         return res.status(400).json({ success: false, message: 'Email already exists' });
       }
 
-      console.log("Password: ", password);
       // Hash the password before storing it in the database
       const saltRounds = 10; // You can adjust the number of salt rounds as needed
       const hashedPassword = await bcrypt.hash(password, saltRounds);
@@ -102,16 +96,10 @@ exports.login = async (req, res) => {
         'INSERT INTO boardroom.users (first_name, last_name, email, password_hash, verification_token, role) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
         [firstname, lastname, email, hashedPassword, verificationToken, 'renter']
       );
-
-      console.log('SQL Query:', 'INSERT INTO boardroom.users (first_name, last_name, email, password_hash, verification_token, role) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *');
       // // Send a verification email to the user
       // sendVerificationEmail(email, verificationToken);
-      console.log("user_id");
       // Retrieve the user's ID from the 'users' table
       const userId = newUser.rows[0].user_id;
-
-      console.log("user_id", userId);
-
     // Insert user-specific data into the 'renter' table with the user's ID
     await pool.query(
       'INSERT INTO boardroom.renters (user_id, renter_school) VALUES ($1, $2)',
@@ -157,7 +145,7 @@ exports.login = async (req, res) => {
   };
 
   // Verify a user's email
-exports.verify = async (req, res) => {
+exports.verifyEmail = async (req, res) => {
   const { token } = req.query;
 
   try {
@@ -178,3 +166,6 @@ exports.verify = async (req, res) => {
   }
 };
 
+exports.verify = async (req, res) => {
+
+}
