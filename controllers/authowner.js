@@ -97,7 +97,7 @@ exports.login = async (req, res) => {
       // Insert the new user into the database with verification token
       const newUser = await pool.query(
         'INSERT INTO boardroom.property_owner (firstname, lastname, user_email, password, verification_token) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-        [firstname, lastname, email, hashedPassword, verificationToken]
+        [firstname, lastname, email, hashedPassword, verificationToken, 'owner']
       );
   
       // Send a verification email to the user

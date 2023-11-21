@@ -5,7 +5,9 @@ const pool = require('../config/database')
 const dotenv = require('dotenv');
 const cookie = require('cookie');
 // const sendVerificationEmail = require('../helpers/email'); // this is for the sending of verification
+const verifyEmail = require('../mail/verifyEmail'); //verify email
 const crypto = require('crypto');
+
 
 
 dotenv.config();
@@ -41,10 +43,15 @@ exports.login = async (req, res) => {
       if (!isPasswordValid) {
         return res.status(401).json({ message: 'Invalid password' });
       }
-  
+    
       // Generate and send a JSON web token (JWT) for authentication
-      const token = jwt.sign({ userId: user.user_id }, process.env.JWT_SECRET, {
-        expiresIn: '1h', // Adjust the expiration time as needed
+      //Token is used as Refresh Token to get new accessToken
+      const token = jwt.sign({ userId: user.user_id, role: user.role }, process.env.JWT_SECRET, {
+        expiresIn: '7d', // Adjust the expiration time as needed
+      });
+      
+      const accessToken = jwt.sign({ userId: user.user_id, role: user.role }, process.env.ACCESSTOKEN_SECRET, {
+        expiresIn: '10s', // Adjust the expiration time as needed
       });
   
   
@@ -53,16 +60,35 @@ exports.login = async (req, res) => {
           'Set-Cookie',
           cookie.serialize('token', token, {
             httpOnly: true,
-            maxAge: 3600, // Token expiration time in seconds (1 hour in this example)
+            maxAge: 7 * 24 * 60 * 60, // Token expiration time in seconds (1 hour in this example)
             sameSite: 'none', // Adjust this based on your security requirements
             secure: false, // Set secure to true in production
             path: '/', // Specify the path where the cookie is accessible
           })
         );
-        
-  
-        res.status(200).json({ message: 'Login successful', token});
-  
+
+        res.setHeader(
+          'Set-Token',
+          cookie.serialize('accessToken', accessToken, {
+            httpOnly: true,
+            maxAge: 7 * 24 * 60 * 60, // Token expiration time in seconds (1 hour in this example)
+            sameSite: 'none', // Adjust this based on your security requirements
+            secure: false, // Set secure to true in production
+            path: '/', // Specify the path where the cookie is accessible
+          })
+        );
+
+        //saving the token (JWT Refresh Token)
+
+        const refreshToken = await pool.query('SELECT token FROM boardroom.refresh_tokens WHERE user_id = $1', [user.user_id]);
+
+        if (refreshToken.rows.length > 0) {
+          // Update the existing refresh token
+          await pool.query('UPDATE boardroom.refresh_tokens SET token = $1 WHERE user_id = $2', [token, user.user_id]);
+        }
+
+        res.json({ accessToken, token });
+
     } catch (error) {
       console.error('Login error:', error);
       res.status(500).json({ message: 'Server error' });
@@ -80,7 +106,6 @@ exports.login = async (req, res) => {
 
       if (existingUser.rows.length > 0) {
         // Email already exists, return a 400 Bad Request response
-        console.log('Email already exists');
         return res.status(400).json({ success: false, message: 'Email already exists' });
       }
 
@@ -106,6 +131,11 @@ exports.login = async (req, res) => {
       [userId, "Caraga State University"]
     );
 
+    //refresh token table
+    const refreshToken = generateVerificationToken();
+
+    await pool.query('INSERT INTO boardroom.refresh_tokens (user_id, token) values ($1, $2)', [userId, refreshToken]);
+
       // Send a successful registration response
       res.status(201).json({ success: true, message: 'User registered successfully' });
     } catch (error) {
@@ -115,6 +145,20 @@ exports.login = async (req, res) => {
       res.status(422).json({ success: false, message: 'Validation failed' });
     }
   };
+
+  exports.logout = async (req, res) => {
+    const cookies = req.cookies.token;
+    if(!cookies) return res.status(204)
+    
+    res.clearCookie('token', {
+      httpOnly: true,
+      maxAge: 7 * 24 * 60 * 60, // Token expiration time in seconds (1 hour in this example)
+      sameSite: 'lax', // Adjust this based on your security requirements
+      secure: false // Set secure to true in production
+    })
+    res.json({ message: "Token Cookie Cleared"})
+
+  }
 
 
 
@@ -144,6 +188,34 @@ exports.login = async (req, res) => {
     }
   };
 
+//check UserResetToken API
+exports.checkResetToken = async (req, res) => {
+  const { token } = req.body;
+  try {
+    // Find the user with the matching reset token in the database
+    const user = await pool.query('SELECT * FROM boardroom.users WHERE reset_token = $1', [token]);
+
+    if (user.rows.length === 0) {
+      return res.status(404).json({ message: 'Invalid or expired token' });
+    }
+
+    // const userRecord = user.rows[0];
+    // const currentTimestamp = Date.now();
+
+    // // Check if the reset token has expired (adjust the time comparison as needed)
+    // if (userRecord.reset_token_expires < currentTimestamp) {
+    //   return res.status(401).json({ message: 'Token has expired' });
+    // }
+
+    // Token is valid
+    res.status(200).json({ message: 'Token is valid' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+
   // Verify a user's email
 exports.verifyEmail = async (req, res) => {
   const { token } = req.query;
@@ -157,7 +229,7 @@ exports.verifyEmail = async (req, res) => {
     }
 
     // Mark the user's account as verified
-    await pool.query('UPDATE boardroom.users SET is_verified = true, verification_token = null WHERE user_id = $1', [user.rows[0].user_id]);
+    await pool.query('UPDATE boardroom.users SET verification_token = true, verification_token = null WHERE user_id = $1', [user.rows[0].user_id]);
 
     res.status(200).json({ message: 'Account verified successfully' });
   } catch (error) {
@@ -166,6 +238,58 @@ exports.verifyEmail = async (req, res) => {
   }
 };
 
-exports.verify = async (req, res) => {
+exports.resendVerificationEmail = async (req, res) => {
+  const { email } = req.body;
+  try {
+    // Find the user with the matching email in the database
+    const user = await pool.query('SELECT * FROM boardroom.users WHERE email = $1', [email]);
 
+    if (user.rows.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Generate a new verification token
+    const verificationToken = generateVerificationToken();
+
+    // Update the user's verification token in the database
+    await pool.query('UPDATE boardroom.users SET verification_token = $1 WHERE user_id = $2', [verificationToken, user.rows[0].user_id]);
+
+    // Send a new verification email to the user
+    verifyEmail(email, verificationToken);
+
+    res.status(200).json({ message: 'Verification email sent' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+}
+
+exports.userdata = async (req, res) => {
+
+  // Token is valid, proceed with fetching user data
+  const userData = await pool.query('SELECT first_name, last_name, email, email_verified, account_created_at FROM boardroom.users WHERE user_id = $1', [req.user.userId]);
+
+  try {
+    if (userData.rows.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const { first_name, last_name, email, email_verified, account_created_at } = userData.rows[0];
+    res.status(200).json({
+      user: {
+        firstName: first_name,
+        lastName: last_name,
+        email,
+        emailVerified: email_verified,
+        accountCreatedAt: account_created_at,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+exports.test = (req, res) => {
+  res.send("Test is working")
 }

@@ -3,7 +3,7 @@ const cors = require("cors");
 const app = express();
 const Renters = require("./routes/authRoute");
 const Owners = require("./routes/authOwner");
-const cookie = require('cookie');
+const cookieParser = require('cookie-parser');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const pool = require('./config/database')
@@ -12,6 +12,8 @@ const crypto = require('crypto');
 const PORT = 8080 || process.env.PORT;
 
 app.use(express.json());
+
+app.use(cookieParser());
 
 const allowedOrigins = ['http://localhost:5173'];
 const corsOptions = {
