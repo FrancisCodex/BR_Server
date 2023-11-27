@@ -6,13 +6,16 @@ dotenv.config();
 function verifyToken(req, res, next) {
     // Get the token from the request headers
     const authHeader = req.headers['authorization'];
+
   
     if (!authHeader) {
+      console.log("No authorization header found");
       return res.status(401).json({ message: 'Unauthorized' });
     }
   
     // Check if the authorization header starts with "Bearer "
     if (!authHeader.startsWith('Bearer ')) {
+      console.log("Invalid authorization header");
       return res.status(401).json({ message: 'Invalid authorization header' });
     }
   
@@ -27,7 +30,7 @@ function verifyToken(req, res, next) {
       // If the token is valid, attach the user object to the request for later use
         req.user = user;
 
-      next(); // Proceed to the next middleware or route handler
+      next();
     });
   }
   

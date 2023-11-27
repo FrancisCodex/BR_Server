@@ -8,6 +8,7 @@ exports.refreshToken = async (req, res) => {
   // const token = req.headers.cookie.substring(7);
   const token = req.cookies.token;
 
+
   if (!token) {
     // No refresh token found in cookies
     return res.status(401).json({ message: 'Refresh token not provided' });
@@ -15,8 +16,9 @@ exports.refreshToken = async (req, res) => {
 
   try {
     const isValidRefreshToken = await pool.query('SELECT * FROM boardroom.refresh_tokens WHERE token = $1', [token]);
-
+    console.log("Is the token valid before check? : ", isValidRefreshToken.rows.length);
     if (isValidRefreshToken.rows.length === 0) {
+      console.log("is token valid?: ", isValidRefreshToken.rows.length);
       // Refresh token not found in the database
       return res.status(403).json({ message: 'Invalid refresh token' });
     }
@@ -29,13 +31,13 @@ exports.refreshToken = async (req, res) => {
 
       // Generate a new access token
       const newAccessToken = jwt.sign({ userId: user.userId, role: user.role }, process.env.ACCESSTOKEN_SECRET, {
-        expiresIn: '10s', // Adjust the expiration time as needed
+        expiresIn: '15m', // Adjust the expiration time as needed
       });
 
       // Update the cookie with the new access token
       res.setHeader(
         'Set-Cookie',
-        cookie.serialize('token', newAccessToken, {
+        cookie.serialize('accessToken', newAccessToken, {
           httpOnly: true,
           maxAge: 7 * 24 * 60 * 60, // Set to your desired duration
           sameSite: 'none',
@@ -45,6 +47,7 @@ exports.refreshToken = async (req, res) => {
       );
 
       // Respond with the new access token
+      console.log("refreshed new accessToken");
       res.json({ accessToken: newAccessToken });
     });
   } catch (error) {

@@ -4,6 +4,7 @@ const auth = require('../controllers/auth');
 const refreshTokenController = require('../controllers/refreshtokenController');
 const verifyToken = require('../middlewares/verifyToken');
 const {checkRole} = require('../middlewares/verifyRole');
+const user = require('../controllers/userData');
 
 // Prefix these routes with '/renters'
 router.post('/login', auth.login);
@@ -19,10 +20,10 @@ router.post('/checkResetToken', auth.checkResetToken);
 //Resetpassword route
 router.post('/resetPassword', auth.resetPassword);
 //verify email
-router.get('/verify', auth.verifyEmail);
+router.post('/verify', auth.verifyEmail);
 router.post('/requestVerification', auth.resendVerificationEmail);
 //get userdata
-router.get('/userdata', verifyToken, checkRole(["renter", "admin", "owner"]), auth.userdata);
+router.get('/userdata', verifyToken, checkRole(["renter", "admin", "owner"]), user.userdata);
 
 router.get('/test', auth.test);
 
