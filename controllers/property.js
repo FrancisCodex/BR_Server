@@ -2,6 +2,7 @@ const pool = require('../config/database');
 const dotenv = require('dotenv');
 const jwt = require('jsonwebtoken');
 dotenv.config();
+const path = require('path');
 
 
 
@@ -9,7 +10,70 @@ exports.viewproperty = async (req, res) =>{
     //viewproperty api here
     //lets user view property
     //this is used to view specific property pages and show their property details
+
+    const { propertyId } = req.params;
+    const staticPath = path.join(__dirname, './images/property_images');
+    console.log('Static files path:', staticPath);
+
+    console.log("propertyId: ", propertyId);
+
+  try {
+    const propertyQuery = `
+    SELECT * FROM boardroom.property_info pi
+    INNER JOIN boardroom.property_listings pl ON pi.property_id = pl.property_id
+          WHERE pi.property_id = $1
+    `;
+
+    const propertyResult = await pool.query(propertyQuery, [propertyId]);
+
+    const imageQuery = `
+      SELECT * FROM boardroom.property_images 
+      WHERE property_id = $1
+    `;
+
+    const imageResult = await pool.query(imageQuery, [propertyId]);
+
+    if (propertyResult.rows.length > 0 && imageResult.rows.length > 0) {
+      const propertyDetails = propertyResult.rows[0];
+      const imageDetails = imageResult.rows[0];
+      console.log("imageDetails: ", imageDetails.image_path);
+
+      res.status(200).json({ propertyDetails, imageDetails });
+    } else {
+      res.status(404).json({ message: 'Property not found' });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+
     
+}
+
+exports.getImage = async (req, res) => {
+  const { propertyId } = req.params;
+  const {filename} = req.params;
+
+  try {
+    const query = `
+      SELECT image_name, image_path, image_mimetype, image_size FROM boardroom.property_images 
+      WHERE property_id = $1 and image_name = $2
+    `;
+
+    const result = await pool.query(query, [propertyId, filename]);
+
+    if (result.rows.length > 0) {
+      const imageDetails = result.rows[0];
+      const imagePath = path.join(__dirname, '../' + imageDetails.image_path);
+      console.log("imagePath: ", imagePath);
+      res.status(200).sendFile(imagePath);
+    } else {
+      res.status(404).json({ message: 'Image not found' });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
 }
 
 exports.uploadproperty = async (req, res) => {
@@ -21,7 +85,11 @@ exports.uploadproperty = async (req, res) => {
     const user_id = decoded.userId;
 
 
-  const { type, address, num_beds, num_bathrooms, num_rooms, description, longitude, latitude, amenities, city} = req.body;
+
+
+  const { type, address, num_beds, num_bathrooms, num_rooms, description, longitude, latitude, amenities, city, listing_title, price} = req.body;
+
+  console.log('Request body:', req.body)
   // console.log("Request property Type: ", req.body.user_id);
   try {
     const query = `
@@ -54,6 +122,10 @@ exports.uploadproperty = async (req, res) => {
 
     await pool.query(imageQuery, imageValues);
 
+    const response = await pool.query('SELECT owner_id FROM boardroom.property_owners WHERE user_id = $1', [user_id]);
+    const ownerid = response.rows[0].owner_id;
+    await pool.query('INSERT INTO boardroom.property_listings (property_id, owner_id, price, listing_title) VALUES ($1, $2, $3, $4)', [propertyId, ownerid, price, listing_title]);
+
     res.status(200).json({message: 'Property Uploaded Successfully!', propertyId: propertyId});
   } catch(error) {
     console.error(error);
@@ -62,41 +134,123 @@ exports.uploadproperty = async (req, res) => {
 }
 
 exports.uploadtest = async (req, res) =>{
-  console.log(req.body);
-  console.log(req.file);
+  const { user_id } = req.params;
+  const response = await pool.query('SELECT owner_id FROM boardroom.property_owners WHERE user_id = $1', [user_id]);
+  const ownerid = response.rows[0].owner_id;
+  
+
+  res.status(200).json({message: 'Property Uploaded Successfully!', ownerid: ownerid});
+}
+
+exports.properties = async (req, res) => {
+  const { user_id } = req.params;
+
+  try {
+    const query = `
+      SELECT * FROM boardroom.property_info 
+      WHERE user_id = $1
+    `;
+
+    const values = [user_id];
+
+    const properties = await pool.query(query, values);
+
+    res.status(200).json(properties.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
 }
 
 
-exports.deleteproperty = async (req, res) =>{
-    //deleteproperty api here
-    //this api can delete a property uploaded
-    //this is used to delete a property from the database
+exports.deleteproperty = async (req, res) => {
+  const token = req.headers.authorization.split(' ')[1];
+  console.log("token: ", token);
 
-    const { propertyId } = req.body;
+  const { propertyId } = req.params;
+  console.log("propertyId: ", propertyId);
 
-    try {
-      const query = `
-        DELETE FROM boardroom.property_info 
-        WHERE property_id = $1
+  try {
+      // Decode the JWT token to get the user_id
+      const decodedToken = jwt.verify(token, process.env.ACCESSTOKEN_SECRET);
+      const userId = decodedToken.user_id;
+
+      // First, check if the property exists
+      const existQuery = `
+          SELECT * FROM boardroom.property_info 
+          WHERE property_id = $1
       `;
-  
-      const values = [propertyId];
-  
-      await pool.query(query, values);
-  
+
+      const existValues = [propertyId];
+
+      const existResponse = await pool.query(existQuery, existValues);
+
+      if (existResponse.rows.length === 0) {
+          return res.status(404).json({ message: 'Property does not exist or already deleted' });
+      }
+
+      // Then, check if the user owns the property
+      const checkQuery = `
+          SELECT * FROM boardroom.property_info 
+          WHERE property_id = $1 AND user_id = $2
+      `;
+
+      const checkValues = [propertyId, userId];
+
+      const checkResponse = await pool.query(checkQuery, checkValues);
+
+      if (checkResponse.rows.length === 0) {
+          return res.status(403).json({ message: 'You do not have permission to delete this property' });
+      }
+
+      // If the user owns the property, proceed with the deletion
+      const deleteQuery = `
+          DELETE FROM boardroom.property_info 
+          WHERE property_id = $1
+      `;
+
+      const deleteValues = [propertyId];
+
+      const deleteResponse = await pool.query(deleteQuery, deleteValues);
+
       res.status(200).json({message: 'Property Deleted Successfully!'});
-    } catch(error) {    
+  } catch(error) {    
       console.error(error);
       res.status(500).json({ message: 'Internal server error' });
-    }
-    
+  }
 }
-exports.propertylistings = async (req, res) =>{
-    //uploadlistings api here
-    //this api can list a property
-    //this api is used when for example: listing pages so the users can see all the properties that are listed
-    //this api must show the property listing details so the users can know the details of every property that is being listed on the system
+
+exports.propertylistings = async (req, res) => {
+  try {
+      const sortOrder = req.query.sort;
+      let query = 'SELECT * FROM boardroom.getAllListings()';
+
+      if (sortOrder === 'lowest') {
+          query += ' ORDER BY price ASC';
+      } else if (sortOrder === 'highest') {
+          query += ' ORDER BY price DESC';
+      }
+
+      const listings = await pool.query(query);
+      res.status(200).json(listings.rows);
+  } catch(error) {
+      console.error(error);
+      res.status(500).json({ message: 'Internal server error' });
+  }
 }
+
+exports.propertyPins = async (req, res) =>{
+  try{
+      const listings = await pool.query('SELECT * FROM boardroom.propertyCoordinates()');
+      res.status(200).json(listings.rows);
+  }catch(error){
+      console.error(error);
+      res.status(500).json({ message: 'Internal server error' });
+  }
+
+}
+
+
 exports.propertyedit = async (req, res) =>{
     //uploadedit api here
     //this api is to update the property details

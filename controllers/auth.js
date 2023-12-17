@@ -42,7 +42,6 @@ exports.login = async (req, res) => {
   
       if (!isPasswordValid) {
         return res.status(401).json({ message: 'Invalid password' });
-        console.log("Invalid Password");
       }
     
       // Generate and send a JSON web token (JWT) for authentication

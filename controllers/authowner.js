@@ -108,8 +108,8 @@ exports.login = async (req, res) => {
       const userId = newUser.rows[0].user_id;
       // Insert user-specific data into the 'renter' table with the user's ID
       await pool.query(
-        'INSERT INTO boardroom.property_owners (user_id, company_name) VALUES ($1, $2)',
-        [userId, "Landlord Company"]
+        'INSERT INTO boardroom.property_owners (user_id) VALUES ($1)',
+        [userId]
       );
 
     //refresh token table

@@ -25,9 +25,14 @@ const imageUpload = multer({
 
 router.post('/upload', imageUpload.single('images'), verifyToken, checkRole(["admin", "owner"]), property.uploadproperty);
 router.post('/edit', verifyToken, checkRole(["admin", "owner"]), property.propertyedit );
-router.get('/view/:id', verifyToken, checkRole(["admin", "owner"]), property.viewproperty );
-router.post('/list', verifyToken, checkRole(["admin", "owner"]), property.propertylistings );
-router.delete('/delete/:id', verifyToken, checkRole(["admin", "owner"]), property.deletelisting );
+router.get('/view/:propertyId', property.viewproperty );
+// router.post('/listings', verifyToken, checkRole(["admin", "owner"]), property.propertylistings );
+router.get('/listings', property.propertylistings );
+router.get('/pins', property.propertyPins );
+router.delete('/delete/:propertyId', verifyToken, checkRole(["admin", "owner"]), property.deleteproperty );
+router.get('/img/:propertyId/:filename', property.getImage )
+router.get('/test/:user_id', property.uploadtest)
+router.get('/:user_id', property.properties );
 
 
 

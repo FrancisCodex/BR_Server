@@ -6,15 +6,18 @@ const Owners = require("./routes/authOwner");
 const Global = require("./routes/routes");
 const Property = require("./routes/propertyRoute");
 const Admin = require("./routes/adminRoute");
+const Reviews = require("./routes/reviewRoute");
 const cookieParser = require('cookie-parser');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const pool = require('./config/database')
 const crypto = require('crypto');
+const path = require('path');
 
 const PORT = 8080 || process.env.PORT;
 
 app.use(express.json());
+app.use(express.static('images/property_images'));
 
 app.use(cookieParser());
 
@@ -40,6 +43,7 @@ app.use("/api/user", Renters);
 app.use("/api/manager", Owners);
 app.use("/api/property", Property);
 app.use("/api/admin", Admin);
+app.use("/api/review", Reviews);
 
 
 app.listen(PORT, () => {
