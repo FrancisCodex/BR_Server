@@ -25,6 +25,7 @@ const imageUpload = multer({
 
 router.post('/upload', imageUpload.single('images'), verifyToken, checkRole(["admin", "owner"]), property.uploadproperty);
 router.post('/edit', verifyToken, checkRole(["admin", "owner"]), property.propertyedit );
+router.get('/view/all', verifyToken, checkRole(["admin", "owner"]), property.getAllProperty);
 router.get('/view/:propertyId', property.viewproperty );
 // router.post('/listings', verifyToken, checkRole(["admin", "owner"]), property.propertylistings );
 router.get('/listings', property.propertylistings );

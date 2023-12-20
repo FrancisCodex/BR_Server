@@ -43,7 +43,7 @@ app.use("/api/user", Renters);
 app.use("/api/manager", Owners);
 app.use("/api/property", Property);
 app.use("/api/admin", Admin);
-app.use("/api/review", Reviews);
+app.use("/api/reviews", Reviews);
 
 
 app.listen(PORT, () => {

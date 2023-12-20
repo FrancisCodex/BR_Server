@@ -293,3 +293,20 @@ exports.userdata = async (req, res) => {
 exports.test = (req, res) => {
   res.send("Test is working")
 }
+
+exports.contactForm = async (req, res) => {
+  const { email, message, owner_id } = req.body;
+  // get JWT token and decode it
+  const token = req.headers.authorization.split(' ')[1];
+  const decodedToken = jwt.verify(token, process.env.ACCESSTOKEN_SECRET);
+  const userId = decodedToken.userId;
+  try{
+
+    //use nodemailer to send email to the property owner
+
+  }catch(error){
+    console.error(error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+
+}

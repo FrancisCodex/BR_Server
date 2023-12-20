@@ -19,8 +19,9 @@ exports.viewproperty = async (req, res) =>{
 
   try {
     const propertyQuery = `
-    SELECT * FROM boardroom.property_info pi
-    INNER JOIN boardroom.property_listings pl ON pi.property_id = pl.property_id
+    SELECT pi.*, pl.*, u.first_name || ' ' || u.last_name AS full_name, u.email FROM boardroom.property_listings pl
+    INNER JOIN boardroom.property_info pi ON pi.property_id = pl.property_id
+    INNER JOIN boardroom.users u ON u.user_id = pi.user_id
           WHERE pi.property_id = $1
     `;
 
@@ -173,7 +174,7 @@ exports.deleteproperty = async (req, res) => {
   try {
       // Decode the JWT token to get the user_id
       const decodedToken = jwt.verify(token, process.env.ACCESSTOKEN_SECRET);
-      const userId = decodedToken.user_id;
+      const userId = decodedToken.userId;
 
       // First, check if the property exists
       const existQuery = `
@@ -223,7 +224,18 @@ exports.deleteproperty = async (req, res) => {
 exports.propertylistings = async (req, res) => {
   try {
       const sortOrder = req.query.sort;
-      let query = 'SELECT * FROM boardroom.getAllListings()';
+      let query = `
+        SELECT 
+          listings.*, 
+          COALESCE(reviews.review_count, 0) as review_count,
+          COALESCE(ROUND(reviews.average_rating::numeric, 1), 0) as average_rating
+        FROM 
+          boardroom.getAllListings2() as listings
+        LEFT JOIN 
+          (SELECT property_id, COUNT(*) as review_count, AVG(rating) as average_rating FROM boardroom.reviews GROUP BY property_id) as reviews
+        ON 
+          listings.property_id = reviews.property_id
+      `;
 
       if (sortOrder === 'lowest') {
           query += ' ORDER BY price ASC';
@@ -248,6 +260,34 @@ exports.propertyPins = async (req, res) =>{
       res.status(500).json({ message: 'Internal server error' });
   }
 
+}
+
+exports.getAllProperty = async (req, res) => {
+  const token = req.headers.authorization.split(' ')[1];
+
+  try {
+      // Decode the JWT token to get the user_id
+      const decodedToken = jwt.verify(token, process.env.ACCESSTOKEN_SECRET);
+      const userId = decodedToken.userId;
+
+      const query = `
+          SELECT pi.*, pl.*, COALESCE(AVG(r.rating), 0) as average_rating, img.image_name FROM boardroom.property_info pi
+          INNER JOIN boardroom.property_listings pl ON pi.property_id = pl.property_id
+          LEFT JOIN boardroom.reviews r ON pi.property_id = r.property_id
+          LEFT JOIN boardroom.property_images img ON pi.property_id = img.property_id
+          WHERE pi.user_id = $1
+          GROUP BY pi.property_id, pl.listing_id, img.image_name
+      `;
+
+      const values = [userId];
+
+      const response = await pool.query(query, values);
+
+      res.status(200).json(response.rows);
+  } catch(error) {    
+      console.error(error);
+      res.status(500).json({ message: 'Internal server error' });
+  }
 }
 
 
