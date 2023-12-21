@@ -8,9 +8,9 @@ const property = require('../controllers/property');
 router.post('/login', authowner.login);
 router.post('/register', authowner.register);
 
-router.post('/upload/property', property.uploadproperty );
-router.post('/edit/property', property.propertyedit );
-router.post('/delete/property', property.deletelisting );
+router.post('/upload/property', verifyToken, checkRole(['owner']), property.uploadproperty);
+router.post('/edit/property', verifyToken, checkRole(['owner']), property.propertyedit );
+router.post('/delete/property', verifyToken, checkRole(['owner']), property.deletelisting );
 
 
 

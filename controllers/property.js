@@ -114,6 +114,7 @@ exports.uploadproperty = async (req, res) => {
       VALUES ($1, $2, $3, $4, $5, $6)
     `;
 
+    console.log("req.file: ", req);
     const imagePath = req.file.path;
     const imageName = req.file.originalname;
     const imageMimetype = req.file.mimetype;
@@ -290,6 +291,46 @@ exports.getAllProperty = async (req, res) => {
   }
 }
 
+exports.getOwnerDetails = async (req, res) => {
+  const propertyId = req.params.propertyId;
+
+  try {
+    const query = `
+    SELECT 
+      u.first_name, 
+      u.last_name, 
+      u.email, 
+      u.role, 
+      (SELECT COUNT(*) FROM boardroom.property_info WHERE user_id = u.user_id) as property_count,
+      ROUND(COALESCE(AVG(r.rating), 0), 1) as average_rating
+    FROM 
+      boardroom.users u
+    INNER JOIN 
+      boardroom.property_info pi ON u.user_id = pi.user_id
+    LEFT JOIN 
+      boardroom.reviews r ON pi.property_id = r.property_id
+    WHERE 
+      u.user_id = $1
+    GROUP BY 
+      u.user_id
+`;
+
+      const values = [propertyId];
+
+      const response = await pool.query(query, values);
+
+      if (response.rows.length === 0) {
+          return res.status(404).json({ message: 'Owner not found' });
+      }
+
+      const owner = response.rows[0];
+
+      res.status(200).json(owner);
+  } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: 'Internal server error' });
+  }
+};
 
 exports.propertyedit = async (req, res) =>{
     //uploadedit api here

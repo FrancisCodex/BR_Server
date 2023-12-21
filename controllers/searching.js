@@ -7,7 +7,7 @@ exports.searchProperties = async (req, res) => {
 
       // Call the searchListings function with the provided parameters
       const result = await pool.query(
-        'SELECT * FROM boardroom.searchListings($1, $2, $3)',
+        'SELECT * FROM boardroom.searchListing7($1, $2, $3)',
         [keyword || null, type || null, city || null]
       );
 

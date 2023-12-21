@@ -31,9 +31,11 @@ router.get('/view/:propertyId', property.viewproperty );
 router.get('/listings', property.propertylistings );
 router.get('/pins', property.propertyPins );
 router.delete('/delete/:propertyId', verifyToken, checkRole(["admin", "owner"]), property.deleteproperty );
-router.get('/img/:propertyId/:filename', property.getImage )
-router.get('/test/:user_id', property.uploadtest)
+router.get('/img/:propertyId/:filename', property.getImage );
+router.get('/test/:user_id', property.uploadtest);
+router.get('/owner/:propertyId', verifyToken, checkRole(["admin", "owner"]), property.getOwnerDetails);
 router.get('/:user_id', property.properties );
+
 
 
 
